@@ -15,7 +15,7 @@ import { ValidateMiddleware } from '../common/validate.middleware';
 @injectable()
 export class UsersController extends BaseController implements IUsersController {
 	constructor(
-		@inject(TYPES.ILogger) private loggerService: Logger,
+		@inject(TYPES.Logger) private loggerService: Logger,
 		@inject(TYPES.UserService) private userService: UsersService,
 	) {
 		super(loggerService);
@@ -24,15 +24,27 @@ export class UsersController extends BaseController implements IUsersController 
 				path: '/login',
 				method: 'post',
 				callback: this.login,
+				middlewares: [new ValidateMiddleware(UserLoginDto)],
+			},
+			{
+				path: '/register',
+				method: 'post',
+				callback: this.register,
 				middlewares: [new ValidateMiddleware(UserRegisterDto)],
 			},
-			{ path: '/register', method: 'post', callback: this.register },
 		]);
 	}
 
-	login(req: Request<{}, {}, UserLoginDto>, res: Response, next: NextFunction): void {
-		console.log(req.body);
-		next(new HTTPError(401, 'auth error', 'not good'));
+	async login(
+		req: Request<{}, {}, UserLoginDto>,
+		res: Response,
+		next: NextFunction,
+	): Promise<void> {
+		const result = await this.userService.validateUser(req.body);
+		if (!result) {
+			return next(new HTTPError(401, 'Authentication error', 'login'));
+		}
+		this.ok(res, {});
 	}
 
 	async register(
@@ -44,6 +56,7 @@ export class UsersController extends BaseController implements IUsersController 
 		if (!result) {
 			return next(new HTTPError(422, 'This user is already exist'));
 		}
-		this.ok(res, { email: result?.email });
+		const { email, id } = result;
+		this.ok(res, { email, id });
 	}
 }
